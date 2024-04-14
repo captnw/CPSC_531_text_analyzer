@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="TestFileAPI" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="FileAPI" />
+    <module name="TextSummarizer" />
+    <option name="PROGRAM_PARAMETERS" value="hdfs://0.0.0.0:19000/TestFile.txt" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
