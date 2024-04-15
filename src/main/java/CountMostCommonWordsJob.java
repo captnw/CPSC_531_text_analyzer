@@ -13,8 +13,8 @@ public class CountMostCommonWordsJob {
         //
         job.setJarByClass(CountMostCommonWordsJob.class);
 
-        job.setMapperClass(JoinMap.class);
-        job.setReducerClass(JoinReduce.class);
+        job.setMapperClass(JoinMapMostCommonWords.class);
+        job.setReducerClass(JoinReduceMostCommonWords.class);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 

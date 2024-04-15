@@ -10,8 +10,8 @@ public class JoinMapMostCommonWords extends Mapper<LongWritable, Text, Text, Tex
     protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
         // super.map(key, value, context);
         StringTokenizer itr = new StringTokenizer(value.toString());
-        String cwid = itr.nextToken();
-        System.out.println("CWID : " + cwid + " and key" + key + " and value: " + value);
-        context.write(new Text(cwid), value);
+        String first_word = itr.nextToken();
+        System.out.println("CWID : " + first_word + " and key" + key + " and value: " + value);
+        context.write(new Text(first_word), value);
     }
 }
