@@ -43,9 +43,9 @@ public class WordCounter {
             for (String pattern : ignorePatterns) {
                 String oldline = line;
                 line = line.replaceAll(pattern, "");
-                if (!oldline.equals(line)) {
-                    System.out.println(oldline + " new: " + line);
-                }
+                //if (!oldline.equals(line)) {
+                //    System.out.println(oldline + " new: " + line);
+                //}
             }
 
             // Tokenize the sentence
@@ -73,7 +73,7 @@ public class WordCounter {
         }
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void run(String[] args) throws Exception {
         // Create Configuration and MR Job objects
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "Join Student and Course");
@@ -94,5 +94,9 @@ public class WordCounter {
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
         System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+
+    public static void main(String[] args) throws Exception {
+        WordCounter.run(args);
     }
 }
