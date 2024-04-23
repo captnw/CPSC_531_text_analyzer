@@ -76,7 +76,7 @@ public class WordCounter {
     public static void run(String[] args) throws Exception {
         // Create Configuration and MR Job objects
         Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "Join Student and Course");
+        Job job = Job.getInstance(conf, "Count frequency of each word in text");
 
         job.setJarByClass(WordCounter.class);
 
