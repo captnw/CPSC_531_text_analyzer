@@ -73,7 +73,7 @@ public class WordCounter {
         }
     }
 
-    public static void run(String[] args) throws Exception {
+    public static boolean run(String[] args) throws Exception {
         // Create Configuration and MR Job objects
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "Count frequency of each word in text");
@@ -93,10 +93,11 @@ public class WordCounter {
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
+        return job.waitForCompletion(true);
     }
 
     public static void main(String[] args) throws Exception {
-        WordCounter.run(args);
+        boolean status= WordCounter.run(args);
+        System.exit(status ? 0 : 1);
     }
 }
