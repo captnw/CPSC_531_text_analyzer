@@ -1,5 +1,6 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -17,18 +18,11 @@ import java.util.UUID;
 
 public class SentenceScorerSM {
     public static class SentenceMapper extends Mapper<LongWritable, Text, Text, Text> {
-        @Override
-        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-            //random uuid to give a sentence a key
-            context.write(new Text(UUID.randomUUID().toString()), value);
-        }
-    }
 
-    public static class ScorerReducer extends Reducer<Text, Text, Text, Text> {
         private final Map<String, Integer> wordCount = new HashMap<>();
 
         @Override
-        protected void setup(Context context) throws IOException, InterruptedException {
+        protected void setup(Mapper.Context context) throws IOException, InterruptedException {
             // Read word count from the part-r-00000 file
             try (BufferedReader br = new BufferedReader(new FileReader("part-r-00000"))) {
                 String line;
@@ -40,8 +34,34 @@ public class SentenceScorerSM {
         }
 
         @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             int score = 0;
+            String sentence = "";
+            sentence = value.toString();
+            String[] words = sentence.split("\\s+");
+            for (String word : words) {
+                // Lookup word count and accumulate score
+                if (wordCount.containsKey(word)) {
+                    score += wordCount.get(word);
+                }
+            }
+            System.out.println(score + sentence);
+
+            // Show sentence with score
+            context.write( new Text(String.valueOf(score)), new Text(sentence));
+            //random uuid to give a sentence a key
+            //context.write(new Text(UUID.randomUUID().toString()), value);
+        }
+    }
+
+    public static class ScorerReducer extends Reducer<Text, Text, Text, Text> {
+
+
+
+
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            /*int score = 0;
             String sentence = "";
             for (Text value : values) {
                 sentence = value.toString();
@@ -52,9 +72,13 @@ public class SentenceScorerSM {
                         score += wordCount.get(word);
                     }
                 }
+            }*/
+            for (Text value : values) {
+                System.out.println(value);
+                context.write(new Text(String.valueOf(key)),value);
             }
             // Show sentence with score
-            context.write(new Text(sentence), new Text(Integer.toString(score)));
+            //context.write(new Text(sentence), new Text(Integer.toString(score)));
         }
     }
 
@@ -72,7 +96,7 @@ public class SentenceScorerSM {
 
         Path outputDir = new Path(args[1]);
         // Construct the path to part-r-00000 file relative to the output directory
-        Path partFilePath = new Path(outputDir, "part-r-00000");
+        //Path partFilePath = new Path(outputDir, "part-r-00000");
 
         //path to part-r-00000 is pass through config file
         //its the 3rd arguement
