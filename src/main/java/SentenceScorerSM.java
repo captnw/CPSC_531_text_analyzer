@@ -15,8 +15,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.LoggerFactory;
+
 
 public class SentenceScorerSM {
+    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(SentenceMapper.class);
     public static class SentenceMapper extends Mapper<LongWritable, Text, Text, Text> {
 
         private final Map<String, Integer> wordCount = new HashMap<>();
@@ -46,7 +49,7 @@ public class SentenceScorerSM {
                 }
             }
             System.out.println(score + sentence);
-
+            LOG.info(sentence);
             // Show sentence with score
             context.write( new Text(String.valueOf(score)), new Text(sentence));
             //random uuid to give a sentence a key
@@ -56,29 +59,19 @@ public class SentenceScorerSM {
 
     public static class ScorerReducer extends Reducer<Text, Text, Text, Text> {
 
-
-
-
+        private static Integer topNSentence = 3;
+        private int sentenceCount = 0;
         @Override
         protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            /*int score = 0;
-            String sentence = "";
-            for (Text value : values) {
-                sentence = value.toString();
-                String[] words = sentence.split("\\s+");
-                for (String word : words) {
-                    // Lookup word count and accumulate score
-                    if (wordCount.containsKey(word)) {
-                        score += wordCount.get(word);
-                    }
-                }
-            }*/
             for (Text value : values) {
                 System.out.println(value);
-                context.write(new Text(String.valueOf(key)),value);
+                if(sentenceCount < topNSentence) {
+                    context.write(key, value);
+                    sentenceCount++;
+                }
+                // Show sentence with score
+ //               context.write(new Text(String.valueOf(key)),value);
             }
-            // Show sentence with score
-            //context.write(new Text(sentence), new Text(Integer.toString(score)));
         }
     }
 
