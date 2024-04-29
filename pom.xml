@@ -18,6 +18,11 @@
             <artifactId>hadoop-common</artifactId>
             <version>3.3.3</version>
         </dependency>
+        <dependency>
+            <groupId>org.javatuples</groupId>
+            <artifactId>javatuples</artifactId>
+            <version>1.2</version>
+        </dependency>
     </dependencies>
 
 </project>

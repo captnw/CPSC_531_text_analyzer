@@ -8,6 +8,7 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.javatuples.Pair;
 
 import java.io.IOException;
 import java.util.*;
@@ -73,8 +74,10 @@ public class WordCounter {
         }
     }
 
-    public static boolean run(String[] args) throws Exception {
+    public static Pair<Boolean,Long> run(String[] args) throws Exception {
         // Create Configuration and MR Job objects
+        Long startTime = System.nanoTime();
+
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "Count frequency of each word in text");
 
@@ -93,11 +96,14 @@ public class WordCounter {
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
-        return job.waitForCompletion(true);
+        Long endTime = System.nanoTime();
+        Long elapsedTime = endTime - startTime;
+
+        return new Pair<Boolean, Long>(job.waitForCompletion(true), elapsedTime);
     }
 
     public static void main(String[] args) throws Exception {
-        boolean status= WordCounter.run(args);
+        boolean status = WordCounter.run(args).getValue0();
         System.exit(status ? 0 : 1);
     }
 }
