@@ -59,7 +59,7 @@ public class SentenceScorer {
 
     public static class ScorerReducer extends Reducer<Text, Text, Text, Text> {
 
-        private static Integer topNSentence = 3;
+        private static Integer topNSentence = 100;
         private int sentenceCount = 0;
         @Override
         protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
