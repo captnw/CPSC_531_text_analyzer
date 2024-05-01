@@ -11,6 +11,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,24 +21,43 @@ import org.slf4j.LoggerFactory;
 
 public class SentenceScorer {
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(SentenceMapper.class);
+
     public static class SentenceMapper extends Mapper<LongWritable, Text, Text, Text> {
 
         private final Map<String, Integer> wordCount = new HashMap<>();
 
+        private Configuration conf;
+
         @Override
-        protected void setup(Mapper.Context context) throws IOException, InterruptedException {
+        protected void setup(Mapper.Context context) throws IOException {
+            conf = context.getConfiguration();
+            URI[] cached_files = Job.getInstance(conf).getCacheFiles();
+
+            // There should only be one cached file (which is used to share the wordCount file with the map job)
+            if (cached_files.length != 1) {
+                throw new IllegalArgumentException("Sentence scorer's 4th argument expects only one file");
+            }
+
+            URI wordCountURI = cached_files[0];
+            Path wordCountFilePath = new Path(wordCountURI.getPath());
+            String wordCountFileName = wordCountFilePath.toString(); // should be "output/part-r-00000"
+
             // Read word count from the part-r-00000 file
-            try (BufferedReader br = new BufferedReader(new FileReader("output/part-r-00000"))) {
+            try (BufferedReader br = new BufferedReader(new FileReader(wordCountFileName))) {
                 String line;
                 while ((line = br.readLine()) != null) {
                     String[] parts = line.split("\\s+");
                     wordCount.put(parts[0], Integer.parseInt(parts[1]));
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
 
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            // We score each sentence, where each parsed word's occurrence in the whole text
+            // would add up to the cumulative score
             int score = 0;
             String sentence = "";
             sentence = value.toString();
@@ -58,27 +78,34 @@ public class SentenceScorer {
     }
 
     public static class ScorerReducer extends Reducer<Text, Text, Text, Text> {
-
-        private static Integer topNSentence = 100;
+        private static final Integer topNSentenceDefault = 10; // by default, only display the top 10 sentences
+        private Integer topNSentence;
         private int sentenceCount = 0;
+
+        @Override
+        protected void setup(Reducer.Context context) {
+            // Load in the number of sentences we want in our summary
+            Configuration conf = context.getConfiguration();
+            topNSentence = conf.getInt("sentencescorer.reduce.numSentencesInSummary", topNSentenceDefault);
+        }
+
         @Override
         protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             for (Text value : values) {
-                //System.out.println(value);
+                // While we want the sentences in our summary, keep them in
+                // At this point, the keys should be sorted, so we are processing in descending
+                // order
                 if(sentenceCount < topNSentence) {
                     context.write(key, value);
                     sentenceCount++;
                 }
-                // Show sentence with score
- //               context.write(new Text(String.valueOf(key)),value);
+                break;
             }
         }
     }
 
-    public static Pair<Boolean, Long> run(String[] args) throws Exception {
+    public static Pair<Boolean, Double> run(String[] args) throws Exception {
         // Create Configuration and MR Job objects
-        Long startTime = System.nanoTime();
-
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "Score each sentence given a word count file");
 
@@ -89,24 +116,34 @@ public class SentenceScorer {
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
+        // Here are our inputs, we expect 4 inputs
+        Path inputDir = new Path(args[0]);
         Path outputDir = new Path(args[1]);
-        // Construct the path to part-r-00000 file relative to the output directory
-        //Path partFilePath = new Path(outputDir, "part-r-00000");
+        URI wordCountFile = new Path(args[2]).toUri();
+        int numSentencesInSummary = Integer.parseInt(args[3]);
 
-        //path to part-r-00000 is pass through config file
-        //its the 3rd arguement
-        job.addCacheFile(new Path(args[2]).toUri());
-        FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        FileInputFormat.addInputPath(job, inputDir);
+        FileOutputFormat.setOutputPath(job, outputDir);
 
+        // Add a cache file and a configuration to use later
+        job.addCacheFile(wordCountFile); // Used in mapping
+        // Use configuration in reduce task
+        job.getConfiguration().setInt("sentencescorer.reduce.numSentencesInSummary",numSentencesInSummary);
+
+        // Measure how long the job takes
+        Long startTime = System.nanoTime();
+        Boolean jobStatus = job.waitForCompletion(true);
         Long endTime = System.nanoTime();
-        Long elapsedTime = endTime - startTime;
+        // Calculate time diff and convert nanoseconds to seconds
+        Double elapsedTime = (endTime - startTime)/1e9d;
 
-        return new Pair<Boolean, Long>(job.waitForCompletion(true), elapsedTime);
+        return new Pair<Boolean, Double>(jobStatus, elapsedTime);
     }
 
     public static void main(String[] args) throws Exception {
-        boolean status = SentenceScorer.run(args).getValue0();
-        System.exit(status ? 0 : 1);
+        Pair<Boolean, Double> status = SentenceScorer.run(args);
+        System.out.println("This job took " + status.getValue1() + " seconds");
+
+        System.exit(status.getValue0() ? 0 : 1);
     }
 }

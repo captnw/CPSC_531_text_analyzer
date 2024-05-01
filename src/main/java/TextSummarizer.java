@@ -10,8 +10,8 @@ public class TextSummarizer {
 
         String[] wordCounterArguments = new String[]{inputFileLocation, wordCounterOutputLocation};
 
-        Pair<Boolean, Long> wordCountJobStatus = WordCounter.run(wordCounterArguments);
-        Pair<Boolean, Long> sentenceScorerStatus = new Pair<>(false, 0L);
+        Pair<Boolean, Double> wordCountJobStatus = WordCounter.run(wordCounterArguments);
+        Pair<Boolean, Double> sentenceScorerStatus = new Pair<>(false, 0D);
         if (wordCountJobStatus.getValue0()) {
             String[] sentenceScorerArguments = new String[]{inputFileLocation,
                                                             sentenceScoreOutputLocation,
@@ -19,12 +19,12 @@ public class TextSummarizer {
                                                             numSentencesKeep};
             sentenceScorerStatus = SentenceScorer.run(sentenceScorerArguments);
 
-            System.out.println("Word count job finished in " + wordCountJobStatus.getValue1() + " nano seconds");
+            System.out.println("Word count job finished in " + wordCountJobStatus.getValue1() + " seconds");
         }
         System.out.println("Jobs finished");
 
         if (sentenceScorerStatus.getValue0()) {
-            System.out.println("Sentence scorer job finished in " + sentenceScorerStatus.getValue1() + " nano seconds");
+            System.out.println("Sentence scorer job finished in " + sentenceScorerStatus.getValue1() + " seconds");
         }
 
         System.exit((wordCountJobStatus.getValue0() && sentenceScorerStatus.getValue0()) ? 0 : 1);

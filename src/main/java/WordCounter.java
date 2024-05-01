@@ -44,9 +44,6 @@ public class WordCounter {
             for (String pattern : ignorePatterns) {
                 String oldline = line;
                 line = line.replaceAll(pattern, "");
-                //if (!oldline.equals(line)) {
-                //    System.out.println(oldline + " new: " + line);
-                //}
             }
 
             // Tokenize the sentence
@@ -66,6 +63,7 @@ public class WordCounter {
     public static class SumReducer extends Reducer<Text, IntWritable, Text, IntWritable> {
         @Override
         protected void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            // Since this is all one "partition" with the same word, just sum up all of the values
             int sum = 0;
             for (IntWritable val : values) {
                 sum += val.get();
@@ -74,10 +72,8 @@ public class WordCounter {
         }
     }
 
-    public static Pair<Boolean,Long> run(String[] args) throws Exception {
+    public static Pair<Boolean,Double> run(String[] args) throws Exception {
         // Create Configuration and MR Job objects
-        Long startTime = System.nanoTime();
-
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "Count frequency of each word in text");
 
@@ -96,14 +92,19 @@ public class WordCounter {
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
+        Long startTime = System.nanoTime();
+        Boolean jobStatus = job.waitForCompletion(true);
         Long endTime = System.nanoTime();
-        Long elapsedTime = endTime - startTime;
+        // Calculate time diff and convert nanoseconds to seconds
+        Double elapsedTime = (endTime - startTime)/1e9d;
 
-        return new Pair<Boolean, Long>(job.waitForCompletion(true), elapsedTime);
+        return new Pair<Boolean, Double>(jobStatus, elapsedTime);
     }
 
     public static void main(String[] args) throws Exception {
-        boolean status = WordCounter.run(args).getValue0();
-        System.exit(status ? 0 : 1);
+        Pair<Boolean, Double> status = WordCounter.run(args);
+        System.out.println("This job took " + status.getValue1() + " seconds");
+
+        System.exit(status.getValue0() ? 0 : 1);
     }
 }
