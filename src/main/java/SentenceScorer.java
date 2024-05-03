@@ -1,7 +1,6 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -13,6 +12,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import org.javatuples.Pair;
@@ -22,7 +22,26 @@ import org.slf4j.LoggerFactory;
 public class SentenceScorer {
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(SentenceMapper.class);
 
-    public static class SentenceMapper extends Mapper<LongWritable, Text, Text, Text> {
+    public static class DescendingIntWritableComparable extends IntWritable {
+        // Class is used to assist with iterating through the output keys of the map class
+        // (The sentence scores) in descending order, this will allow us to quickly find
+        // the most valued sentences and ignore the rest if possible
+        public static class DescendingComparator extends Comparator {
+            public int compare(WritableComparable wc1, WritableComparable wc2) {
+                // Add negative sign to make sure IntWritable keys are sorted in descending order
+                return -super.compare(wc1, wc2);
+            }
+
+            public int compare(byte[] b1, int s1, int l1, byte[] b2, int s2, int l2) {
+                // Another template we need to override for the comparator
+                // Just leave everything else alone and add a negative sign to the front
+                // for descending order
+                return -super.compare(b1, s1, l1, b2, s2, l2);
+            }
+        }
+    }
+
+    public static class SentenceMapper extends Mapper<LongWritable, Text, IntWritable, Text> {
 
         private final Map<String, Integer> wordCount = new HashMap<>();
 
@@ -71,13 +90,11 @@ public class SentenceScorer {
             //System.out.println(score + sentence);
             LOG.info(sentence);
             // Show sentence with score
-            context.write( new Text(String.valueOf(score)), new Text(sentence));
-            //random uuid to give a sentence a key
-            //context.write(new Text(UUID.randomUUID().toString()), value);
+            context.write( new IntWritable(score), new Text(sentence));
         }
     }
 
-    public static class ScorerReducer extends Reducer<Text, Text, Text, Text> {
+    public static class ScorerReducer extends Reducer<IntWritable, Text, Text, Text> {
         private static final Integer topNSentenceDefault = 10; // by default, only display the top 10 sentences
         private Integer topNSentence;
         private int sentenceCount = 0;
@@ -90,16 +107,16 @@ public class SentenceScorer {
         }
 
         @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+        protected void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             for (Text value : values) {
                 // While we want the sentences in our summary, keep them in
-                // At this point, the keys should be sorted, so we are processing in descending
+                // At this point, the keys should be sorted, so we are processing in ascending
                 // order
-                if(sentenceCount < topNSentence) {
-                    context.write(key, value);
-                    sentenceCount++;
+                if (sentenceCount == topNSentence) {
+                    break;
                 }
-                break;
+                sentenceCount++;
+                context.write(new Text(String.valueOf(key)), value);
             }
         }
     }
@@ -112,7 +129,12 @@ public class SentenceScorer {
         job.setJarByClass(SentenceScorer.class);
 
         job.setMapperClass(SentenceMapper.class);
+        job.setMapOutputKeyClass(IntWritable.class); // We want to sort the map output by their keys
+        job.setSortComparatorClass(DescendingIntWritableComparable.DescendingComparator.class);
+
+        job.setMapOutputValueClass(Text.class);
         job.setReducerClass(ScorerReducer.class);
+
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
