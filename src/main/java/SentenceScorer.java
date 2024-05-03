@@ -1,4 +1,5 @@
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapreduce.Job;
@@ -10,6 +11,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -57,17 +59,24 @@ public class SentenceScorer {
                 throw new IllegalArgumentException("Sentence scorer's 4th argument expects only one file");
             }
 
+            FileSystem fs = FileSystem.get(conf);
             URI wordCountURI = cached_files[0];
             Path wordCountFilePath = new Path(wordCountURI.getPath());
-            String wordCountFileName = wordCountFilePath.toString(); // should be "output/part-r-00000"
 
-            // Read word count from the part-r-00000 file
-            try (BufferedReader br = new BufferedReader(new FileReader(wordCountFileName))) {
+            // Have a try-with-resources so resources get closed properly if exception is thrown
+            try (InputStreamReader isr = new InputStreamReader(fs.open(wordCountFilePath));
+                 BufferedReader br = new BufferedReader(isr)){
+                // Read the word count file, compatible with local file system and HDFS
+                System.out.println("parsing wordCountfile ...");
                 String line;
+                Integer numLines = 0;
+
                 while ((line = br.readLine()) != null) {
                     String[] parts = line.split("\\s+");
                     wordCount.put(parts[0], Integer.parseInt(parts[1]));
+                    numLines++;
                 }
+                System.out.println("processed " + numLines + " lines in wordCountfile");
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -87,7 +96,6 @@ public class SentenceScorer {
                     score += wordCount.get(word);
                 }
             }
-            //System.out.println(score + sentence);
             LOG.info(sentence);
             // Show sentence with score
             context.write( new IntWritable(score), new Text(sentence));
