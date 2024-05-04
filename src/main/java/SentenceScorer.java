@@ -1,4 +1,5 @@
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.*;
@@ -9,7 +10,6 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
@@ -17,11 +17,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import org.javatuples.Pair;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 import org.slf4j.LoggerFactory;
 
 
-public class SentenceScorer {
+public class SentenceScorer extends Configured implements Tool {
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(SentenceMapper.class);
 
     public static class DescendingIntWritableComparable extends IntWritable {
@@ -47,11 +48,9 @@ public class SentenceScorer {
 
         private final Map<String, Integer> wordCount = new HashMap<>();
 
-        private Configuration conf;
-
         @Override
         protected void setup(Mapper.Context context) throws IOException {
-            conf = context.getConfiguration();
+            Configuration conf = context.getConfiguration();
             URI[] cached_files = Job.getInstance(conf).getCacheFiles();
 
             // There should only be one cached file (which is used to share the wordCount file with the map job)
@@ -69,7 +68,7 @@ public class SentenceScorer {
                 // Read the word count file, compatible with local file system and HDFS
                 System.out.println("parsing wordCountfile ...");
                 String line;
-                Integer numLines = 0;
+                int numLines = 0;
 
                 while ((line = br.readLine()) != null) {
                     String[] parts = line.split("\\s+");
@@ -129,15 +128,21 @@ public class SentenceScorer {
         }
     }
 
-    public static Pair<Boolean, Double> run(String[] args) throws Exception {
+    public int run(String[] args) throws Exception {
+        if (args.length != 4) {
+            System.err.println("Usage: SentenceScorer <input path> <output path> <wordcount file> <num sentences to display>");
+            return -1;
+        }
+
         // Create Configuration and MR Job objects
-        Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "Score each sentence given a word count file");
+        Job job = Job.getInstance(getConf(), "Score each sentence given a word count file");
 
         job.setJarByClass(SentenceScorer.class);
 
         job.setMapperClass(SentenceMapper.class);
-        job.setMapOutputKeyClass(IntWritable.class); // We want to sort the map output by their keys
+        // We want to sort the map output by their keys
+        job.setMapOutputKeyClass(IntWritable.class);
+        // We want to sort the keys in descending order
         job.setSortComparatorClass(DescendingIntWritableComparable.DescendingComparator.class);
 
         job.setMapOutputValueClass(Text.class);
@@ -156,8 +161,8 @@ public class SentenceScorer {
         FileOutputFormat.setOutputPath(job, outputDir);
 
         // Add a cache file and a configuration to use later
-        job.addCacheFile(wordCountFile); // Used in mapping
-        // Use configuration in reduce task
+        job.addCacheFile(wordCountFile); // Used in scoring during map phase
+        // Set configuration for usage in reduce task
         job.getConfiguration().setInt("sentencescorer.reduce.numSentencesInSummary",numSentencesInSummary);
 
         // Measure how long the job takes
@@ -167,13 +172,14 @@ public class SentenceScorer {
         // Calculate time diff and convert nanoseconds to seconds
         Double elapsedTime = (endTime - startTime)/1e9d;
 
-        return new Pair<Boolean, Double>(jobStatus, elapsedTime);
+        System.out.println("This job took " + elapsedTime + " seconds");
+
+        return jobStatus ? 0 : 1;
     }
 
     public static void main(String[] args) throws Exception {
-        Pair<Boolean, Double> status = SentenceScorer.run(args);
-        System.out.println("This job took " + status.getValue1() + " seconds");
-
-        System.exit(status.getValue0() ? 0 : 1);
+        Configuration conf = new Configuration();
+        int exitCode = ToolRunner.run(conf, new SentenceScorer() ,args);
+        System.exit(exitCode);
     }
 }

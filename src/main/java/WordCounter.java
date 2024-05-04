@@ -1,4 +1,5 @@
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -8,12 +9,13 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.javatuples.Pair;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 
 import java.io.IOException;
 import java.util.*;
 
-public class WordCounter {
+public class WordCounter extends Configured implements Tool {
     public static class WordTokenMapper extends Mapper<LongWritable, Text, Text, IntWritable> {
         private final boolean allLowercase = true;
 
@@ -72,10 +74,14 @@ public class WordCounter {
         }
     }
 
-    public static Pair<Boolean,Double> run(String[] args) throws Exception {
+    public int run(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: WordCounter <input path> <output path>");
+            return -1;
+        }
+
         // Create Configuration and MR Job objects
-        Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "Count frequency of each word in text");
+        Job job = Job.getInstance(getConf(), "Count frequency of each word in text");
 
         job.setJarByClass(WordCounter.class);
 
@@ -84,10 +90,6 @@ public class WordCounter {
         job.setReducerClass(SumReducer.class);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
-
-        // Delete output2 folder if it already exists on local file system
-        // Remove if ready
-        // LocalFileHelperAPI.DeleteDirectory(args[1]);
 
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
@@ -98,13 +100,14 @@ public class WordCounter {
         // Calculate time diff and convert nanoseconds to seconds
         Double elapsedTime = (endTime - startTime)/1e9d;
 
-        return new Pair<Boolean, Double>(jobStatus, elapsedTime);
+        System.out.println("WordCounter job took " + elapsedTime + " seconds");
+
+        return jobStatus ? 0 : 1;
     }
 
     public static void main(String[] args) throws Exception {
-        Pair<Boolean, Double> status = WordCounter.run(args);
-        System.out.println("This job took " + status.getValue1() + " seconds");
-
-        System.exit(status.getValue0() ? 0 : 1);
+        Configuration conf = new Configuration();
+        int exitCode = ToolRunner.run(conf, new WordCounter() ,args);
+        System.exit(exitCode);
     }
 }
